@@ -1,8 +1,23 @@
-const API_BASE = 'https://maps.googleapis.com/maps/api/place';
-const DEFAULT_MAX_PAGES = 3; // Text Search hard-caps at 60 results (3 pages of 20) regardless of this setting
-const RETRYABLE_STATUSES = new Set(['OVER_QUERY_LIMIT', 'UNKNOWN_ERROR']);
+// Uses Places API (New) -- the classic maps.googleapis.com/maps/api/place
+// endpoints are being phased out and rejected the key used in production here
+// with "You're calling a legacy API, which is not enabled for your project."
+// The New API's searchText already returns website/phone in one call given
+// the right field mask, so there's no separate per-result Details call needed
+// like the old two-step search-then-details flow required.
+const API_BASE = 'https://places.googleapis.com/v1';
+const DEFAULT_MAX_PAGES = 3; // ~60 results at up to 20/page, matching the old cap
+const RETRYABLE_STATUSES = new Set(['RESOURCE_EXHAUSTED', 'UNAVAILABLE', 'DEADLINE_EXCEEDED']);
 const MAX_RETRIES = 4;
-const NEXT_PAGE_TOKEN_DELAY_MS = 2000; // Google rejects a pagetoken used too soon after the previous page
+const NEXT_PAGE_TOKEN_DELAY_MS = 2000; // Google rejects a pageToken used too soon after the previous page
+const FIELD_MASK = [
+  'places.id',
+  'places.displayName',
+  'places.formattedAddress',
+  'places.nationalPhoneNumber',
+  'places.websiteUri',
+  'places.primaryType',
+  'nextPageToken',
+].join(',');
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -14,78 +29,63 @@ function apiKey() {
   return key;
 }
 
-async function requestWithRetry(url) {
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const res = await fetch(url);
-    const data = await res.json();
-    if (!RETRYABLE_STATUSES.has(data.status) || attempt === MAX_RETRIES) return data;
+async function searchTextPage(textQuery, pageToken) {
+  const body = pageToken ? { textQuery, pageToken } : { textQuery };
 
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const res = await fetch(`${API_BASE}/places:searchText`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey(),
+        'X-Goog-FieldMask': FIELD_MASK,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (res.ok) return data;
+
+    const status = data.error?.status;
+    if (!RETRYABLE_STATUSES.has(status) || attempt === MAX_RETRIES) {
+      throw new Error(`Places Text Search failed: ${status || res.status} ${data.error?.message || ''}`.trim());
+    }
     const backoff = 500 * 2 ** attempt + Math.random() * 250;
     await sleep(backoff);
   }
 }
 
 async function textSearch(query, { maxPages = DEFAULT_MAX_PAGES } = {}) {
-  const key = apiKey();
   const results = [];
   let pageToken = null;
   let page = 0;
 
   do {
-    const url = new URL(`${API_BASE}/textsearch/json`);
-    url.searchParams.set('key', key);
-    if (pageToken) {
-      url.searchParams.set('pagetoken', pageToken);
-      await sleep(NEXT_PAGE_TOKEN_DELAY_MS);
-    } else {
-      url.searchParams.set('query', query);
-    }
-
-    const data = await requestWithRetry(url.toString());
-    if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-      throw new Error(`Places Text Search failed: ${data.status} ${data.error_message || ''}`.trim());
-    }
-
-    results.push(...(data.results || []));
-    pageToken = data.next_page_token || null;
+    if (pageToken) await sleep(NEXT_PAGE_TOKEN_DELAY_MS);
+    const data = await searchTextPage(query, pageToken);
+    results.push(...(data.places || []));
+    pageToken = data.nextPageToken || null;
     page += 1;
   } while (pageToken && page < maxPages);
 
   return results;
 }
 
-async function getDetails(placeId) {
-  const url = new URL(`${API_BASE}/details/json`);
-  url.searchParams.set('key', apiKey());
-  url.searchParams.set('place_id', placeId);
-  url.searchParams.set('fields', 'name,formatted_phone_number,website,formatted_address,types');
-
-  const data = await requestWithRetry(url.toString());
-  if (data.status !== 'OK') return null;
-  return data.result;
-}
-
-// query: e.g. "bakery", city: "Providence, RI" -> combined into a Text Search query.
+// query: e.g. "bakery", city: "Philadelphia, PA" -> combined into a Text Search query.
 async function scrapeLocal({ query, city, maxPages }) {
   if (!query) throw new Error('scrapeLocal requires a query, e.g. "bakery"');
 
   const searchQuery = city ? `${query} in ${city}` : query;
   const places = await textSearch(searchQuery, { maxPages });
 
-  const leads = [];
-  for (const place of places) {
-    const details = await getDetails(place.place_id);
-    leads.push({
-      name: details?.name || place.name,
-      category: (place.types || [])[0] || null,
-      source: 'google_places',
-      source_id: place.place_id,
-      city: city || null,
-      site_url: details?.website || null,
-      phone: details?.formatted_phone_number || null,
-    });
-  }
-  return leads;
+  return places.map((place) => ({
+    name: place.displayName?.text || 'Unknown',
+    category: place.primaryType || null,
+    source: 'google_places',
+    source_id: place.id,
+    city: city || null,
+    site_url: place.websiteUri || null,
+    phone: place.nationalPhoneNumber || null,
+  }));
 }
 
-module.exports = { scrapeLocal, textSearch, getDetails };
+module.exports = { scrapeLocal, textSearch };
