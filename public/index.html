@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lead Pipeline</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<header>
+  <h1>Lead Pipeline</h1>
+  <form method="POST" action="/logout"><button type="submit" class="link-button">Log out</button></form>
+</header>
+
+<section class="panel" id="runPanel">
+  <h2>Run a scrape</h2>
+  <div class="run-grid">
+    <div class="run-card">
+      <h3>Local businesses</h3>
+      <input id="placesQuery" placeholder="Category, e.g. bakery" />
+      <input id="placesCity" placeholder="City, e.g. Providence, RI" />
+      <button id="runPlacesBtn">Run Google Places scrape</button>
+    </div>
+    <div class="run-card">
+      <h3>Literary directory</h3>
+      <select id="directoryRecipe"></select>
+      <button id="runDirectoryBtn">Run directory scrape</button>
+    </div>
+    <div class="run-card">
+      <h3>Enrich</h3>
+      <input id="enrichLimit" type="number" min="1" value="50" title="Max leads to enrich this run" />
+      <button id="runEnrichBtn">Enrich pending leads</button>
+    </div>
+  </div>
+  <p id="jobStatus" class="job-status" hidden></p>
+</section>
+
+<section class="panel">
+  <h2>Leads</h2>
+  <div class="filters">
+    <input id="filterSearch" placeholder="Search name/city" />
+    <select id="filterStatus">
+      <option value="">All statuses</option>
+      <option value="new">New</option>
+      <option value="contacted">Contacted</option>
+      <option value="replied">Replied</option>
+      <option value="booked">Booked</option>
+      <option value="dead">Dead</option>
+    </select>
+    <select id="filterSource">
+      <option value="">All sources</option>
+    </select>
+    <input id="filterMinScore" type="number" min="0" max="100" placeholder="Min score" />
+    <button id="applyFiltersBtn">Filter</button>
+  </div>
+  <div class="table-wrap">
+    <table id="leadsTable">
+      <thead>
+        <tr>
+          <th>Score</th><th>Name</th><th>Category</th><th>City</th><th>Site</th>
+          <th>Phone</th><th>Email</th><th>Status</th><th>Notes</th>
+        </tr>
+      </thead>
+      <tbody id="leadsBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<script src="/dashboard.js"></script>
+</body>
+</html>

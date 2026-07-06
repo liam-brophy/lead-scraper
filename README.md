@@ -1,0 +1,140 @@
+# Lead Pipeline
+
+A scored, filterable list of outreach prospects for freelance web design work —
+local small businesses (Google Places) and literary/creative publishers
+(directory scrapes). **Discovery and scoring only.** This tool never sends
+anything; outreach stays manual and personalized.
+
+## How it works
+
+1. **Scrape** — pull candidate leads from Google Places (local businesses) or a
+   directory recipe (literary publishers).
+2. **Enrich** — for each lead with a website, check for a public email and score
+   how much their current site looks like it needs a rebuild (no SSL, no mobile
+   viewport, page builder like Wix/Squarespace, stale copyright year, slow
+   response). Leads with no website at all get a high default score, since
+   "doesn't have a site" is itself a strong opportunity.
+3. **Review** — from the dashboard (works fine from a phone), filter by status/
+   source/score, and edit status/notes as you work leads.
+
+Both scrape and enrich can be kicked off from the dashboard itself (as
+background jobs you can poll), so the whole thing works from a phone without
+needing to SSH in or run a local CLI. `cli.js` is kept around as a local-dev
+convenience for the same operations.
+
+## Local setup
+
+```bash
+npm install
+cp .env.example .env      # fill in a real password + secret, see below
+docker compose up -d      # local Postgres on :5432
+npm start                 # http://localhost:3000
+```
+
+If you don't want to run Docker, `railway run npm start` (after `railway link`)
+borrows the environment variables from your Railway project, including the real
+`DATABASE_URL` — no local Postgres needed at all.
+
+`GOOGLE_PLACES_API_KEY` is only needed for the Google Places scrape; everything
+else works without it.
+
+## Usage
+
+**Dashboard** (`/`, behind the login page): filter leads, edit status/notes
+inline, and trigger scrape/enrich runs from the "Run a scrape" panel. Each run
+becomes a job you can watch finish without leaving the page.
+
+**CLI** (local dev only):
+```bash
+node cli.js scrape-local --query bakery --city "Providence, RI"
+node cli.js scrape-directory --recipe clmp
+node cli.js enrich --limit 50
+```
+
+## Testing
+
+```bash
+npm test
+```
+
+Runs `siteAnalyzer`'s scoring logic (pure function, table-driven cases) and an
+integration test of `db.js`'s upsert/dedup logic. The DB test runs against
+[pg-mem](https://github.com/oguimbal/pg-mem), an in-memory Postgres emulator —
+no real database needed to run the suite.
+
+## Directory recipes
+
+`scrapers/recipes/` holds one module per literary directory source. Each
+exports `scrape({ fetchPage })` returning raw `{ name, site_url?, city?,
+category? }` entries; `directoryScraper.js` handles dedup-key hashing and
+403/blocked detection so recipes don't have to.
+
+Current recipes (all verified against the live sites):
+
+- **`clmp`** — scrapes the Community of Literary Magazines and Presses
+  directory. Only the first ~24 unfiltered results are available without a
+  browser (the rest load through a nonce-gated FacetWP AJAX endpoint); each of
+  those 24 gets its profile page fetched for its real website/category/city.
+- **`poets-writers`** — Poets & Writers' small press directory. Plain
+  `?page=N` pagination; defaults to the first 2 pages (~50 presses) per run to
+  keep each scrape to a reviewable batch — bump `MAX_PAGES` in the recipe file
+  for a bigger pull.
+- **`small-press-distribution`** — spdbooks.org is not scrapable with a plain
+  HTTP fetch (curl gets a flat 403 from its edge/WAF; Node's fetch sometimes
+  gets a 200 but it's a JS-only consent-manager shell with no real content
+  either way). This recipe detects that and reports itself blocked rather than
+  faking working selectors. Getting real data out of this source would require
+  a headless browser working through the consent flow, which is out of scope
+  (see "what this deliberately doesn't do" below).
+
+To add a new source, drop a module in `scrapers/recipes/` following the same
+contract and register it in `scrapers/directoryScraper.js`.
+
+## Deploying (Railway)
+
+1. Push this repo to GitHub (already set up at the `lead-scraper` remote).
+2. In Railway: **New Project → Deploy from GitHub repo**, pick `lead-scraper`.
+   Nixpacks auto-detects Node; no Dockerfile needed.
+3. **Add a Postgres addon** to the project and link it to this service —
+   Railway injects `DATABASE_URL` automatically, no manual wiring.
+4. Set the remaining env vars on the service (Settings → Variables):
+   - `GOOGLE_PLACES_API_KEY`
+   - `DASHBOARD_PASSWORD` — a real password, this is the only thing gating a
+     public URL
+   - `SESSION_SECRET` — generate with
+     `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+   - `PORT` is set by Railway automatically; don't override it.
+5. Deploy. Railway gives you a `*.up.railway.app` URL — bookmark it on your
+   phone, that's the whole "reachable while away from home" requirement.
+
+No data migration needed: the schema is created automatically on boot
+(`db.migrate()`), and there's no prior production data to carry over.
+
+## Design decisions (why, not just what)
+
+- **Postgres over SQLite** — Railway's managed Postgres is a one-click addon
+  with auto-injected `DATABASE_URL`; a SQLite file would need a persistent
+  volume mounted by hand plus a native-module compile step. Postgres is the
+  less fiddly option on this specific host.
+- **Railway over Render/Fly.io** — Render's free tier sleeps after 15 min
+  idle (bad for "check from mobile after a few hours away"); Fly.io dropped
+  free compute and needs more manual config. Railway has no forced sleep,
+  one-click Postgres, and zero-Dockerfile GitHub deploys.
+- **Signed cookie over HTTP Basic auth** — Basic auth's browser-native prompt
+  is clunky on mobile Safari and has no real logout. `auth.js` does a small
+  login page instead: `DASHBOARD_PASSWORD` compared with
+  `crypto.timingSafeEqual`, then an HMAC-signed, HttpOnly, Secure cookie good
+  for 30 days.
+- **No scraper evasion** — 403s, WAF blocks, and JS-only consent shells are
+  reported as blocked and skipped, never worked around with header spoofing,
+  proxy rotation, or a headless browser. This holds even where it costs real
+  data (see the SPD recipe above).
+
+## What this deliberately doesn't do
+
+- No "send email" button, and never will — personalization matters for this
+  kind of outreach and it's a deliberate scope boundary, not a missing feature.
+- No login-bypass or behind-auth-wall scraping — public pages only.
+- No anti-bot evasion (header spoofing, proxy rotation, solving consent/CAPTCHA
+  challenges) — a source that blocks plain HTTP requests is treated as
+  unavailable, not as a puzzle to get around.
