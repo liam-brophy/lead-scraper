@@ -115,7 +115,13 @@ railway logs --service lead-scraper --deployment --latest --lines 100
    especially if a CLI agent is driving this).
 3. `railway init` to create the project, `railway add --database postgres` for
    the DB, `railway add --repo <owner>/<repo> --branch main --service <name>`
-   to link the app to GitHub.
+   to link the app to GitHub. Note: `add --repo` alone didn't actually
+   register a push-to-deploy webhook here -- a push to `main` right after
+   didn't trigger a build. Running
+   `railway service source connect --repo <owner>/<repo> --branch main --service <name>`
+   afterward is what actually wired up the trigger; a subsequent push
+   deployed within seconds. Worth doing as a matter of course, not just when
+   auto-deploy seems broken.
 4. Set env vars on the app service:
    - `DATABASE_URL=${{Postgres.DATABASE_URL}}` — references the Postgres
      service's connection string directly, no copy-pasting a value that'll go
