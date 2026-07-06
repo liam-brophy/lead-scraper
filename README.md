@@ -115,13 +115,26 @@ railway logs --service lead-scraper --deployment --latest --lines 100
    especially if a CLI agent is driving this).
 3. `railway init` to create the project, `railway add --database postgres` for
    the DB, `railway add --repo <owner>/<repo> --branch main --service <name>`
-   to link the app to GitHub. Note: `add --repo` alone didn't actually
-   register a push-to-deploy webhook here -- a push to `main` right after
-   didn't trigger a build. Running
-   `railway service source connect --repo <owner>/<repo> --branch main --service <name>`
-   afterward is what actually wired up the trigger; a subsequent push
-   deployed within seconds. Worth doing as a matter of course, not just when
-   auto-deploy seems broken.
+   to link the app to GitHub.
+
+   None of the CLI commands above actually get push-to-deploy working by
+   themselves -- confirmed by pushing after each one and watching nothing
+   happen. Three separate things all had to be true, and the service
+   settings page (Source section) told the real story each time:
+   - The **Railway GitHub App** has to be installed on the GitHub account
+     with access to the repo (`github.com/apps/railway-app` → Install →
+     "Only select repositories"). Without it, the service settings page
+     just shows "GitHub Repo not found" no matter what the CLI reports.
+     Check `github.com/settings/installations` if unsure whether it's there.
+   - After installing the app, the repo has to be **re-picked** from the
+     Source Repo field in the service's Settings tab (the pencil icon) --
+     the CLI-set reference doesn't retroactively pick up the new app grant.
+   - Even with a valid repo connection, the branch section can still say
+     **"Auto deploy is disabled"** with its own separate toggle. This is the
+     one that actually gates whether a push triggers a build.
+   `railway service source connect` (CLI) is a fine substitute for the second
+   step, but there's no CLI equivalent found for the auto-deploy toggle --
+   that one needs the dashboard.
 4. Set env vars on the app service:
    - `DATABASE_URL=${{Postgres.DATABASE_URL}}` — references the Postgres
      service's connection string directly, no copy-pasting a value that'll go
