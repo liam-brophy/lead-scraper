@@ -90,22 +90,46 @@ Current recipes (all verified against the live sites):
 To add a new source, drop a module in `scrapers/recipes/` following the same
 contract and register it in `scrapers/directoryScraper.js`.
 
-## Deploying (Railway)
+## Deployed
 
-1. Push this repo to GitHub (already set up at the `lead-scraper` remote).
-2. In Railway: **New Project → Deploy from GitHub repo**, pick `lead-scraper`.
-   Nixpacks auto-detects Node; no Dockerfile needed.
-3. **Add a Postgres addon** to the project and link it to this service —
-   Railway injects `DATABASE_URL` automatically, no manual wiring.
-4. Set the remaining env vars on the service (Settings → Variables):
-   - `GOOGLE_PLACES_API_KEY`
-   - `DASHBOARD_PASSWORD` — a real password, this is the only thing gating a
-     public URL
-   - `SESSION_SECRET` — generate with
-     `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
-   - `PORT` is set by Railway automatically; don't override it.
-5. Deploy. Railway gives you a `*.up.railway.app` URL — bookmark it on your
-   phone, that's the whole "reachable while away from home" requirement.
+Live at **https://lead-scraper-production-58d0.up.railway.app** — bookmark it
+on your phone. Deployed via Railway CLI, redeploys automatically on every push
+to `main` (the app service is linked to the GitHub repo).
+
+Project layout on Railway: a `Postgres` service and a `lead-scraper` service in
+one project, both in the `production` environment.
+
+### Redeploying / changing config
+
+```bash
+railway variable set KEY=value --service lead-scraper   # triggers a redeploy
+railway redeploy --service lead-scraper --from-source -y # force a fresh deploy
+railway logs --service lead-scraper --deployment --latest --lines 100
+```
+
+### Doing this from scratch on a new project
+
+1. Push the repo to GitHub.
+2. `railway login` (use `--browserless` — it prints a device-code link instead
+   of trying to open a local browser, which is the more verifiable flow,
+   especially if a CLI agent is driving this).
+3. `railway init` to create the project, `railway add --database postgres` for
+   the DB, `railway add --repo <owner>/<repo> --branch main --service <name>`
+   to link the app to GitHub.
+4. Set env vars on the app service:
+   - `DATABASE_URL=${{Postgres.DATABASE_URL}}` — references the Postgres
+     service's connection string directly, no copy-pasting a value that'll go
+     stale.
+   - `GOOGLE_PLACES_API_KEY`, `DASHBOARD_PASSWORD`, `SESSION_SECRET` (generate
+     with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
+   - **`PORT=3000`, set explicitly.** Railway assigns its own port dynamically
+     per deploy if you don't pin one — found this the hard way on the first
+     deploy here: the app bound to whatever Railway assigned (`:8080`), but
+     the domain created via `railway domain --port 3000` was routing to a
+     different port, so every request 502'd until `PORT` was pinned and the
+     service redeployed.
+5. `railway redeploy --service <name> --from-source -y`, then
+   `railway domain --service <name> --port 3000` to get a public URL.
 
 No data migration needed: the schema is created automatically on boot
 (`db.migrate()`), and there's no prior production data to carry over.
