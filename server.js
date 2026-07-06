@@ -32,8 +32,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/leads', async (req, res, next) => {
   try {
-    const { status, source, minScore, search } = req.query;
-    const leads = await db.listLeads({ status, source, minScore, search });
+    const { status, source, minScore, search, queued } = req.query;
+    const leads = await db.listLeads({ status, source, minScore, search, queued });
     res.json(leads);
   } catch (err) {
     next(err);
@@ -42,8 +42,8 @@ app.get('/api/leads', async (req, res, next) => {
 
 app.patch('/api/leads/:id', async (req, res, next) => {
   try {
-    const { status, notes } = req.body;
-    const lead = await db.patchLead(req.params.id, { status, notes });
+    const { status, notes, queued } = req.body;
+    const lead = await db.patchLead(req.params.id, { status, notes, queued });
     if (!lead) return res.status(404).json({ error: 'not found' });
     res.json(lead);
   } catch (err) {

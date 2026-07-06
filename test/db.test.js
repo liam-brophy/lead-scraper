@@ -86,6 +86,30 @@ test('patchLead: only updates the fields provided', async () => {
   assert.equal(afterNotes.notes, 'great fit');
 });
 
+test('patchLead: queued toggles queued_at, independent of status', async () => {
+  const lead = await db.upsertLead({ name: 'Queue Co', source: 'google_places', source_id: 'place-queue' });
+
+  await db.patchLead(lead.id, { queued: true });
+  const queued = await db.getLead(lead.id);
+  assert.ok(queued.queued_at, 'queued_at should be set');
+  assert.equal(queued.status, 'new', 'queuing a lead should not touch its status');
+
+  await db.patchLead(lead.id, { queued: false });
+  const unqueued = await db.getLead(lead.id);
+  assert.equal(unqueued.queued_at, null);
+});
+
+test('listLeads: queued filter only returns queued leads', async () => {
+  const a = await db.upsertLead({ name: 'Queued Alpha', source: 'google_places', source_id: 'queue-a' });
+  await db.upsertLead({ name: 'Queued Beta (not queued)', source: 'google_places', source_id: 'queue-b' });
+  await db.patchLead(a.id, { queued: true });
+
+  const queuedOnly = await db.listLeads({ queued: true });
+  const names = queuedOnly.map((l) => l.name);
+  assert.ok(names.includes('Queued Alpha'));
+  assert.ok(!names.includes('Queued Beta (not queued)'));
+});
+
 test('getLeadsPendingEnrichment: only returns leads without a fit_score', async () => {
   await db.upsertLead({ name: 'Needs Enrichment', source: 'google_places', source_id: 'place-pending' });
   const scored = await db.upsertLead({ name: 'Already Scored', source: 'google_places', source_id: 'place-scored' });

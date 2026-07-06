@@ -2,13 +2,19 @@ const cheerio = require('cheerio');
 
 const USER_AGENT = 'Mozilla/5.0 (compatible; LeadPipelineBot/1.0; +https://available.liam.site)';
 const FETCH_TIMEOUT_MS = 10000;
-const SLOW_RESPONSE_MS = 3000;
 const STALE_YEAR_GAP = 2;
 
-const BUILDER_SCORE = { wix: 15, squarespace: 15, weebly: 15, wordpress: 5 };
+// WordPress scores as high as Wix/Squarespace/Weebly now, not below them --
+// plugin/core vulnerabilities and upkeep burden make an aging WP site a real
+// migrate-to-something-modern pitch, not a "probably fine" case.
+const BUILDER_SCORE = { wix: 15, squarespace: 15, weebly: 15, wordpress: 20 };
 
 // Pure scoring function: higher score = better prospect (their site shows more
 // signs of needing a rebuild). Kept separate from the fetch logic so it's trivially unit-testable.
+//
+// Deliberately scores only things a full rebuild actually fixes -- no signal
+// for slow response time, since site-speed tuning isn't the service being sold
+// here (still recorded in signals.responseTimeMs for reference, just not scored).
 function scoreSite(signals = {}) {
   let score = 0;
 
@@ -16,7 +22,6 @@ function scoreSite(signals = {}) {
   if (signals.mobileFriendly === false) score += 25;
   if (signals.builder && BUILDER_SCORE[signals.builder]) score += BUILDER_SCORE[signals.builder];
   if (signals.staleCopyrightYear) score += 20;
-  if (typeof signals.responseTimeMs === 'number' && signals.responseTimeMs > SLOW_RESPONSE_MS) score += 10;
   if (signals.fetchFailed || signals.blocked) score += 10;
 
   return Math.max(0, Math.min(100, score));

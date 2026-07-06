@@ -19,6 +19,7 @@ function currentFilters() {
     status: document.getElementById('filterStatus').value,
     source: document.getElementById('filterSource').value,
     minScore: document.getElementById('filterMinScore').value,
+    queued: document.getElementById('filterQueued').checked ? 'true' : '',
   };
 }
 
@@ -54,7 +55,13 @@ function renderLeads(leads) {
       ? `${escapeHtml(lead.email)} <span class="badge badge-${escapeHtml(lead.email_confidence)}">${escapeHtml(lead.email_confidence)}</span>`
       : '<span class="muted">—</span>';
 
+    const isQueued = !!lead.queued_at;
+
     tr.innerHTML = `
+      <td>
+        <button class="queue-toggle ${isQueued ? 'queued' : ''}" data-id="${lead.id}" data-queued="${isQueued ? '0' : '1'}"
+          title="${isQueued ? 'Remove from queue' : 'Add to queue'}">${isQueued ? '★' : '☆'}</button>
+      </td>
       <td class="score">${lead.fit_score ?? '—'}</td>
       <td>${escapeHtml(lead.name)}</td>
       <td>${escapeHtml(lead.category)}</td>
@@ -85,6 +92,9 @@ function renderLeads(leads) {
   tbody.querySelectorAll('.notes-input').forEach((el) => {
     el.addEventListener('blur', () => patchLead(el.dataset.id, { notes: el.value }));
   });
+  tbody.querySelectorAll('.queue-toggle').forEach((el) => {
+    el.addEventListener('click', () => toggleQueue(el.dataset.id, el.dataset.queued === '1'));
+  });
 }
 
 async function patchLead(id, body) {
@@ -97,6 +107,13 @@ async function patchLead(id, body) {
   } catch (err) {
     alert(`Failed to save: ${err.message}`);
   }
+}
+
+// Reloads the list after toggling, unlike status/notes -- if "Queue only" is
+// active, removing a lead from the queue should make it disappear right away.
+async function toggleQueue(id, queued) {
+  await patchLead(id, { queued });
+  loadLeads();
 }
 
 async function loadLeads() {

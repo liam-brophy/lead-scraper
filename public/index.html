@@ -51,13 +51,16 @@
       <option value="">All sources</option>
     </select>
     <input id="filterMinScore" type="number" min="0" max="100" placeholder="Min score" />
+    <label class="checkbox-label">
+      <input type="checkbox" id="filterQueued" /> Queue only
+    </label>
     <button id="applyFiltersBtn">Filter</button>
   </div>
   <div class="table-wrap">
     <table id="leadsTable">
       <thead>
         <tr>
-          <th>Score</th><th>Name</th><th>Category</th><th>City</th><th>Site</th>
+          <th>Queue</th><th>Score</th><th>Name</th><th>Category</th><th>City</th><th>Site</th>
           <th>Phone</th><th>Email</th><th>Status</th><th>Notes</th>
         </tr>
       </thead>

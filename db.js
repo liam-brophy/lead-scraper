@@ -55,7 +55,7 @@ async function upsertLead(lead) {
   return rows[0];
 }
 
-async function listLeads({ status, source, minScore, search } = {}) {
+async function listLeads({ status, source, minScore, search, queued } = {}) {
   const clauses = [];
   const params = [];
 
@@ -74,6 +74,9 @@ async function listLeads({ status, source, minScore, search } = {}) {
   if (search) {
     params.push(`%${search.toLowerCase()}%`);
     clauses.push(`(lower(name) LIKE $${params.length} OR lower(city) LIKE $${params.length})`);
+  }
+  if (queued === true || queued === 'true') {
+    clauses.push(`queued_at IS NOT NULL`);
   }
 
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
@@ -98,7 +101,7 @@ async function getLeadsPendingEnrichment(limit = 50) {
   return rows;
 }
 
-async function patchLead(id, { status, notes }) {
+async function patchLead(id, { status, notes, queued }) {
   const clauses = [];
   const params = [];
 
@@ -109,6 +112,9 @@ async function patchLead(id, { status, notes }) {
   if (notes !== undefined) {
     params.push(notes);
     clauses.push(`notes = $${params.length}`);
+  }
+  if (queued !== undefined) {
+    clauses.push(queued ? `queued_at = now()` : `queued_at = NULL`);
   }
   if (!clauses.length) return getLead(id);
 

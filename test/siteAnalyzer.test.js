@@ -25,7 +25,7 @@ test('scoreSite: builder fingerprints score by platform', () => {
   assert.equal(scoreSite({ builder: 'wix' }), 15);
   assert.equal(scoreSite({ builder: 'squarespace' }), 15);
   assert.equal(scoreSite({ builder: 'weebly' }), 15);
-  assert.equal(scoreSite({ builder: 'wordpress' }), 5);
+  assert.equal(scoreSite({ builder: 'wordpress' }), 20); // scores as high as the page builders -- upkeep/plugin risk, not "probably fine"
   assert.equal(scoreSite({ builder: null }), 0);
 });
 
@@ -34,9 +34,9 @@ test('scoreSite: stale copyright year adds 20', () => {
   assert.equal(scoreSite({ staleCopyrightYear: false }), 0);
 });
 
-test('scoreSite: slow response over threshold adds 10', () => {
-  assert.equal(scoreSite({ responseTimeMs: 5000 }), 10);
-  assert.equal(scoreSite({ responseTimeMs: 1000 }), 0);
+test('scoreSite: response time is recorded but never scored', () => {
+  assert.equal(scoreSite({ responseTimeMs: 9000 }), 0);
+  assert.equal(scoreSite({ responseTimeMs: 100 }), 0);
 });
 
 test('scoreSite: fetchFailed or blocked adds 10', () => {
@@ -44,16 +44,27 @@ test('scoreSite: fetchFailed or blocked adds 10', () => {
   assert.equal(scoreSite({ blocked: true }), 10);
 });
 
-test('scoreSite: worst-case site clamps at 100', () => {
+test('scoreSite: worst realistic case sums independent signals', () => {
   const score = scoreSite({
     hasSSL: false,
     mobileFriendly: false,
-    builder: 'wix',
+    builder: 'wordpress',
     staleCopyrightYear: true,
-    responseTimeMs: 9000,
     fetchFailed: true,
   });
-  assert.equal(score, 100);
+  assert.equal(score, 95);
+});
+
+test('scoreSite: score never exceeds 100 even if every signal fires at once', () => {
+  const score = scoreSite({
+    hasSSL: false,
+    mobileFriendly: false,
+    builder: 'wordpress',
+    staleCopyrightYear: true,
+    fetchFailed: true,
+    blocked: true,
+  });
+  assert.ok(score <= 100);
 });
 
 test('scoreSite: missing signals default to no penalty', () => {

@@ -10,12 +10,16 @@ anything; outreach stays manual and personalized.
 1. **Scrape** — pull candidate leads from Google Places (local businesses) or a
    directory recipe (literary publishers).
 2. **Enrich** — for each lead with a website, check for a public email and score
-   how much their current site looks like it needs a rebuild (no SSL, no mobile
-   viewport, page builder like Wix/Squarespace, stale copyright year, slow
-   response). Leads with no website at all get a high default score, since
-   "doesn't have a site" is itself a strong opportunity.
+   how much their current site looks like it needs a rebuild: no SSL, no mobile
+   viewport, built on Wix/Squarespace/Weebly/WordPress, or a stale copyright
+   year. Site speed is recorded but deliberately not scored -- that's not the
+   service being sold here. Leads with no website at all get a high default
+   score, since "doesn't have a site" is itself a strong opportunity. See
+   `scoreSite()` in `scrapers/siteAnalyzer.js` for the exact weights.
 3. **Review** — from the dashboard (works fine from a phone), filter by status/
-   source/score, and edit status/notes as you work leads.
+   source/score, and edit status/notes as you work leads. Star a lead to add
+   it to your outreach queue (independent of status -- queuing doesn't mark it
+   contacted), then check "Queue only" to work through that list.
 
 Both scrape and enrich can be kicked off from the dashboard itself (as
 background jobs you can poll), so the whole thing works from a phone without

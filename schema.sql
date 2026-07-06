@@ -14,11 +14,16 @@ CREATE TABLE IF NOT EXISTS leads (
   fit_score        INTEGER,
   status           TEXT NOT NULL DEFAULT 'new', -- new|contacted|replied|booked|dead
   notes            TEXT,
+  queued_at        TIMESTAMPTZ,             -- set when added to the outreach queue; NULL = not queued
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (source, source_id)
 );
 
+-- Handles the production table that already existed before queued_at was added.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS queued_at TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads (status);
 CREATE INDEX IF NOT EXISTS idx_leads_fit_score ON leads (fit_score DESC);
 CREATE INDEX IF NOT EXISTS idx_leads_source ON leads (source);
+CREATE INDEX IF NOT EXISTS idx_leads_queued ON leads (queued_at) WHERE queued_at IS NOT NULL;

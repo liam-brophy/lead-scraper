@@ -87,14 +87,35 @@ button:hover { opacity: 0.9; }
 }
 .filters input, .filters select { flex: 1 1 140px; }
 
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.checkbox-label input { width: auto; }
+
 .table-wrap { overflow-x: auto; }
 
-table { width: 100%; border-collapse: collapse; min-width: 800px; }
+table { width: 100%; border-collapse: collapse; min-width: 850px; }
 th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #eee; font-size: 0.85rem; white-space: nowrap; }
 th { position: sticky; top: 0; background: #fff; }
 
 td .notes-input { width: 100%; min-width: 120px; }
 td .status-select { min-width: 100px; }
+
+.queue-toggle {
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 1.3rem;
+  line-height: 1;
+  padding: 0.2rem 0.4rem;
+  cursor: pointer;
+}
+.queue-toggle.queued { color: #d4a017; }
+.queue-toggle:hover { color: #a17b00; }
 
 .score { font-weight: 600; }
 .muted { color: #999; }
