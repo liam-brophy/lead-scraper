@@ -168,3 +168,4 @@ No data migration needed: the schema is created automatically on boot
 - No anti-bot evasion (header spoofing, proxy rotation, solving consent/CAPTCHA
   challenges) — a source that blocks plain HTTP requests is treated as
   unavailable, not as a puzzle to get around.
+
