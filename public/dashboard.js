@@ -105,7 +105,10 @@ async function patchLead(id, body) {
       body: JSON.stringify(body),
     });
   } catch (err) {
-    alert(`Failed to save: ${err.message}`);
+    // Never use alert() here -- it's a blocking native dialog that freezes the
+    // whole page's JS (including every other button) until dismissed, which is
+    // exactly what made the app look totally unresponsive during testing.
+    setJobStatus(`Failed to save: ${err.message}`, true);
   }
 }
 
@@ -173,7 +176,7 @@ async function startJob(url, body) {
 
 document.getElementById('runPlacesBtn').addEventListener('click', () => {
   const query = document.getElementById('placesQuery').value.trim();
-  if (!query) return alert('Enter a category to search for.');
+  if (!query) return setJobStatus('Enter a category to search for (e.g. "bakery").', true);
   startJob('/api/scrape/local', {
     query,
     city: document.getElementById('placesCity').value.trim(),
