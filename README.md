@@ -1,14 +1,24 @@
 # Lead Pipeline
 
-A scored, filterable list of outreach prospects for freelance web design work —
-local small businesses (Google Places) and literary/creative publishers
-(directory scrapes). **Discovery and scoring only.** This tool never sends
-anything; outreach stays manual and personalized.
+An automated lead generator for freelance web design work — not a search tool
+you drive by hand. It scrapes, scores, and surfaces prospects on its own once
+a day; you just review what's ready. Two prospect types: **local businesses**
+around Philadelphia (Google Places -- "easy lifts" like restaurants, dentists,
+therapists, not a curated best-of-the-best) and **literary/publishing
+contacts** nationwide (directory scrapes), since the latter is relevant
+specifically because of the design work being pitched. **Discovery and
+scoring only.** This tool never sends anything; outreach stays manual and
+personalized.
 
 ## How it works
 
-1. **Scrape** — pull candidate leads from Google Places (local businesses) or a
-   directory recipe (literary publishers).
+1. **Automated daily run** (`scheduler.js`) — once every 24 hours, with no
+   button-pressing: scrapes a rotating handful of local-business categories
+   around Philadelphia (see `config.js` for the category list and rotation
+   size) plus one literary directory recipe, then enriches whatever's pending.
+   Runs immediately on first boot if it's never run before, and reschedules
+   itself off the last completed run in the database -- a redeploy or restart
+   doesn't cause a duplicate or a missed day.
 2. **Enrich** — for each lead with a website, check for a public email and score
    how much their current site looks like it needs a rebuild: no SSL, no mobile
    viewport, built on Wix/Squarespace/Weebly/WordPress, or a stale copyright
@@ -16,15 +26,21 @@ anything; outreach stays manual and personalized.
    service being sold here. Leads with no website at all get a high default
    score, since "doesn't have a site" is itself a strong opportunity. See
    `scoreSite()` in `scrapers/siteAnalyzer.js` for the exact weights.
-3. **Review** — from the dashboard (works fine from a phone), filter by status/
-   source/score, and edit status/notes as you work leads. Star a lead to add
-   it to your outreach queue (independent of status -- queuing doesn't mark it
-   contacted), then check "Queue only" to work through that list.
+3. **Review on Home** — a status report, not a table to dig through: last-run
+   summary, counts (prime targets ready / being reviewed / in library / total),
+   and the actual prime-targets list (scored, still live, not already saved).
+   Each lead is tagged **Local** or **Literary** so the two pools stay visually
+   distinct even though they can appear in the same list.
+4. **Library** — its own tab, not a filter. Add a prime target here with one
+   click; it stays independent of contacted/replied/booked/dead status, so
+   saving something to reach out to later never gets confused with having
+   already reached out. Mark status and jot notes right there as you work
+   through outreach.
 
-Both scrape and enrich can be kicked off from the dashboard itself (as
-background jobs you can poll), so the whole thing works from a phone without
-needing to SSH in or run a local CLI. `cli.js` is kept around as a local-dev
-convenience for the same operations.
+A manual-scrape panel still exists (collapsed under "Manual scrape (advanced)"
+on Home) for one-off runs outside the daily schedule, and `cli.js` covers the
+same operations from a terminal for local dev. Neither is the primary way
+this tool is meant to be used.
 
 ## Local setup
 
@@ -44,16 +60,44 @@ else works without it.
 
 ## Usage
 
-**Dashboard** (`/`, behind the login page): filter leads, edit status/notes
-inline, and trigger scrape/enrich runs from the "Run a scrape" panel. Each run
-becomes a job you can watch finish without leaving the page.
+**Home** (`/`, behind the login page): status report + prime targets. This is
+where you should actually spend time -- the automation does the finding.
+
+**Library** (tab next to Home): leads you've saved to reach out to, with
+status/notes editing. Separate from Home on purpose -- it's not a filtered
+view of the same list, it's where outreach actually gets tracked.
+
+**Manual scrape** (collapsed panel at the bottom of Home): one-off scrape/enrich
+runs outside the daily schedule, for when you want something specific right
+now rather than waiting for the rotation.
 
 **CLI** (local dev only):
 ```bash
-node cli.js scrape-local --query bakery --city "Providence, RI"
+node cli.js scrape-local --query bakery --city "Philadelphia, PA"
 node cli.js scrape-directory --recipe clmp
 node cli.js enrich --limit 50
 ```
+
+## Automation config
+
+`config.js` holds the only knobs that matter for what the daily run actually
+searches:
+- `LOCAL_SEARCH_CITY` -- fixed to Philadelphia; not meant to rotate city to
+  city, since that's not how this business works.
+- `LOCAL_CATEGORIES` -- the "easy lift" category list (restaurant, dentist,
+  therapist, etc.). Edit this array directly to add/remove categories.
+- `DAILY_CATEGORY_COUNT` -- how many categories run per day (default 3, to
+  keep Google Places API cost down and avoid re-confirming the same
+  businesses daily).
+- `LITERARY_RECIPES` -- which directory recipes are in the automated rotation
+  (`clmp`, `poets-writers`; `small-press-distribution` is excluded since it's
+  permanently blocked, see its recipe file).
+- `PRIME_TARGET_MIN_SCORE` -- the score threshold for showing up on Home
+  (default 50).
+
+Rotation through `LOCAL_CATEGORIES`/`LITERARY_RECIPES` is deterministic by
+calendar day (`pickRotation()` in `lib.js`), not a stored index -- a redeploy
+never skips or repeats a day's picks.
 
 ## Testing
 

@@ -1,6 +1,7 @@
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
+const { PRIME_TARGET_MIN_SCORE } = require('./config');
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is not set. See .env.example.');
@@ -144,6 +145,72 @@ async function applyEnrichment(id, { email, email_confidence, signals, fit_score
   return rows[0] || null;
 }
 
+// Scored, still live, not already earmarked -- the leads actually worth
+// putting in front of the user today.
+async function getPrimeTargets(limit = 100) {
+  const { rows } = await pool.query(
+    `SELECT * FROM leads
+     WHERE fit_score >= $1 AND status != 'dead' AND queued_at IS NULL
+     ORDER BY fit_score DESC, created_at DESC
+     LIMIT $2`,
+    [PRIME_TARGET_MIN_SCORE, limit]
+  );
+  return rows;
+}
+
+async function getStatusSummary() {
+  const { rows } = await pool.query(`
+    SELECT
+      (SELECT count(*) FROM leads) AS total_leads,
+      (SELECT count(*) FROM leads WHERE fit_score >= ${PRIME_TARGET_MIN_SCORE} AND status != 'dead' AND queued_at IS NULL) AS prime_targets,
+      (SELECT count(*) FROM leads WHERE fit_score IS NULL) AS pending_enrichment,
+      (SELECT count(*) FROM leads WHERE queued_at IS NOT NULL) AS queued
+  `);
+  const row = rows[0];
+  return {
+    totalLeads: Number(row.total_leads),
+    primeTargets: Number(row.prime_targets),
+    pendingEnrichment: Number(row.pending_enrichment),
+    queued: Number(row.queued),
+  };
+}
+
+async function createPipelineRun({ local_categories, literary_recipe }) {
+  const { rows } = await pool.query(
+    `INSERT INTO pipeline_runs (local_categories, literary_recipe)
+     VALUES ($1::jsonb, $2) RETURNING *`,
+    [JSON.stringify(local_categories || []), literary_recipe || null]
+  );
+  return rows[0];
+}
+
+async function finishPipelineRun(id, {
+  status, local_scraped_count, literary_scraped_count, literary_blocked, enriched_count, error,
+}) {
+  const { rows } = await pool.query(
+    `UPDATE pipeline_runs SET
+       finished_at = now(),
+       status = $2,
+       local_scraped_count = $3,
+       literary_scraped_count = $4,
+       literary_blocked = $5,
+       enriched_count = $6,
+       error = $7
+     WHERE id = $1
+     RETURNING *`,
+    [id, status, local_scraped_count ?? null, literary_scraped_count ?? null, literary_blocked ?? null, enriched_count ?? null, error || null]
+  );
+  return rows[0] || null;
+}
+
+async function getLatestPipelineRuns(limit = 5) {
+  const { rows } = await pool.query(
+    `SELECT * FROM pipeline_runs ORDER BY started_at DESC LIMIT $1`,
+    [limit]
+  );
+  return rows;
+}
+
 module.exports = {
   pool,
   migrate,
@@ -151,6 +218,11 @@ module.exports = {
   listLeads,
   getLead,
   getLeadsPendingEnrichment,
+  getPrimeTargets,
+  getStatusSummary,
   patchLead,
   applyEnrichment,
+  createPipelineRun,
+  finishPipelineRun,
+  getLatestPipelineRuns,
 };

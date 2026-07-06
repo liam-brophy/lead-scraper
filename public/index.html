@@ -9,64 +9,90 @@
 <body>
 <header>
   <h1>Lead Pipeline</h1>
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="home">Home</button>
+    <button class="tab-btn" data-tab="library">Library</button>
+  </nav>
   <form method="POST" action="/logout"><button type="submit" class="link-button">Log out</button></form>
 </header>
 
-<section class="panel" id="runPanel">
-  <h2>Run a scrape</h2>
-  <div class="run-grid">
-    <div class="run-card">
-      <h3>Local businesses</h3>
-      <input id="placesQuery" placeholder="Category, e.g. bakery" />
-      <input id="placesCity" placeholder="City, e.g. Providence, RI" />
-      <button id="runPlacesBtn">Run Google Places scrape</button>
+<section id="homeView">
+  <section class="panel">
+    <h2>Status</h2>
+    <div class="stat-grid" id="statGrid"></div>
+    <p id="lastRun" class="last-run"></p>
+  </section>
+
+  <section class="panel">
+    <h2>Prime targets</h2>
+    <p class="muted">Scored, still live, not already in your library.</p>
+    <div class="table-wrap">
+      <table id="primeTable">
+        <thead>
+          <tr>
+            <th>Type</th><th>Score</th><th>Name</th><th>Category</th><th>City</th><th>Site</th>
+            <th>Phone</th><th>Email</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="primeBody"></tbody>
+      </table>
+      <p id="primeEmpty" class="muted" hidden>Nothing ready right now — check back after the next automated run.</p>
     </div>
-    <div class="run-card">
-      <h3>Literary directory</h3>
-      <select id="directoryRecipe"></select>
-      <button id="runDirectoryBtn">Run directory scrape</button>
+  </section>
+
+  <details class="panel">
+    <summary>Manual scrape (advanced)</summary>
+    <div class="run-grid">
+      <div class="run-card">
+        <h3>Local businesses (one-off)</h3>
+        <input id="placesQuery" placeholder="Category, e.g. bakery" />
+        <input id="placesCity" placeholder="City, e.g. Philadelphia, PA" />
+        <button id="runPlacesBtn">Run Google Places scrape</button>
+      </div>
+      <div class="run-card">
+        <h3>Literary directory (one-off)</h3>
+        <select id="directoryRecipe"></select>
+        <button id="runDirectoryBtn">Run directory scrape</button>
+      </div>
+      <div class="run-card">
+        <h3>Enrich</h3>
+        <input id="enrichLimit" type="number" min="1" value="50" title="Max leads to enrich this run" />
+        <button id="runEnrichBtn">Enrich pending leads</button>
+      </div>
     </div>
-    <div class="run-card">
-      <h3>Enrich</h3>
-      <input id="enrichLimit" type="number" min="1" value="50" title="Max leads to enrich this run" />
-      <button id="runEnrichBtn">Enrich pending leads</button>
-    </div>
-  </div>
-  <p id="jobStatus" class="job-status" hidden></p>
+    <p id="jobStatus" class="job-status" hidden></p>
+  </details>
 </section>
 
-<section class="panel">
-  <h2>Leads</h2>
-  <div class="filters">
-    <input id="filterSearch" placeholder="Search name/city" />
-    <select id="filterStatus">
-      <option value="">All statuses</option>
-      <option value="new">New</option>
-      <option value="contacted">Contacted</option>
-      <option value="replied">Replied</option>
-      <option value="booked">Booked</option>
-      <option value="dead">Dead</option>
-    </select>
-    <select id="filterSource">
-      <option value="">All sources</option>
-    </select>
-    <input id="filterMinScore" type="number" min="0" max="100" placeholder="Min score" />
-    <label class="checkbox-label">
-      <input type="checkbox" id="filterQueued" /> Queue only
-    </label>
-    <button id="applyFiltersBtn">Filter</button>
-  </div>
-  <div class="table-wrap">
-    <table id="leadsTable">
-      <thead>
-        <tr>
-          <th>Queue</th><th>Score</th><th>Name</th><th>Category</th><th>City</th><th>Site</th>
-          <th>Phone</th><th>Email</th><th>Status</th><th>Notes</th>
-        </tr>
-      </thead>
-      <tbody id="leadsBody"></tbody>
-    </table>
-  </div>
+<section id="libraryView" hidden>
+  <section class="panel">
+    <h2>Library</h2>
+    <p class="muted">Leads you've saved to reach out to. Mark them as you work through outreach.</p>
+    <div class="filters">
+      <input id="filterSearch" placeholder="Search name/city" />
+      <select id="filterStatus">
+        <option value="">All statuses</option>
+        <option value="new">New</option>
+        <option value="contacted">Contacted</option>
+        <option value="replied">Replied</option>
+        <option value="booked">Booked</option>
+        <option value="dead">Dead</option>
+      </select>
+      <button id="applyLibraryFiltersBtn">Filter</button>
+    </div>
+    <div class="table-wrap">
+      <table id="libraryTable">
+        <thead>
+          <tr>
+            <th></th><th>Type</th><th>Score</th><th>Name</th><th>Category</th><th>City</th><th>Site</th>
+            <th>Phone</th><th>Email</th><th>Status</th><th>Notes</th>
+          </tr>
+        </thead>
+        <tbody id="libraryBody"></tbody>
+      </table>
+      <p id="libraryEmpty" class="muted" hidden>Your library is empty -- add leads from the Home tab.</p>
+    </div>
+  </section>
 </section>
 
 <script src="/dashboard.js"></script>

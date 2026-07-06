@@ -8,7 +8,7 @@
 const Module = require('module');
 const { newDb } = require('pg-mem');
 
-const memDb = newDb({ autoCreateForeignKeyIndices: true });
+const memDb = newDb({ autoCreateForeignKeyIndices: true, noAstCoverageCheck: true });
 memDb.public.registerFunction({ name: 'now', returns: 'timestamptz', implementation: () => new Date() });
 const { Pool } = memDb.adapters.createPg();
 
@@ -139,4 +139,66 @@ test('listLeads: filters by status, source, minScore, and search', async () => {
 
   const bySearch = await db.listLeads({ search: 'boston' });
   assert.ok(bySearch.some((l) => l.name === 'Filter Alpha'));
+});
+
+test('getPrimeTargets: excludes low scores, dead leads, and already-queued leads', async () => {
+  const good = await db.upsertLead({ name: 'Prime Good', source: 'google_places', source_id: 'prime-good' });
+  await db.applyEnrichment(good.id, { fit_score: 70 });
+
+  const low = await db.upsertLead({ name: 'Prime Low Score', source: 'google_places', source_id: 'prime-low' });
+  await db.applyEnrichment(low.id, { fit_score: 10 });
+
+  const dead = await db.upsertLead({ name: 'Prime Dead', source: 'google_places', source_id: 'prime-dead' });
+  await db.applyEnrichment(dead.id, { fit_score: 90 });
+  await db.patchLead(dead.id, { status: 'dead' });
+
+  const queued = await db.upsertLead({ name: 'Prime Already Queued', source: 'google_places', source_id: 'prime-queued' });
+  await db.applyEnrichment(queued.id, { fit_score: 90 });
+  await db.patchLead(queued.id, { queued: true });
+
+  const targets = await db.getPrimeTargets();
+  const names = targets.map((l) => l.name);
+  assert.ok(names.includes('Prime Good'));
+  assert.ok(!names.includes('Prime Low Score'));
+  assert.ok(!names.includes('Prime Dead'));
+  assert.ok(!names.includes('Prime Already Queued'));
+});
+
+test('getStatusSummary: counts reflect actual lead state', async () => {
+  const before = await db.getStatusSummary();
+
+  const lead = await db.upsertLead({ name: 'Summary Co', source: 'google_places', source_id: 'summary-co' });
+  const afterScrape = await db.getStatusSummary();
+  assert.equal(afterScrape.totalLeads, before.totalLeads + 1);
+  assert.equal(afterScrape.pendingEnrichment, before.pendingEnrichment + 1);
+
+  await db.applyEnrichment(lead.id, { fit_score: 80 });
+  const afterEnrich = await db.getStatusSummary();
+  assert.equal(afterEnrich.pendingEnrichment, before.pendingEnrichment);
+  assert.equal(afterEnrich.primeTargets, before.primeTargets + 1);
+
+  await db.patchLead(lead.id, { queued: true });
+  const afterQueue = await db.getStatusSummary();
+  assert.equal(afterQueue.queued, before.queued + 1);
+  assert.equal(afterQueue.primeTargets, before.primeTargets, 'queuing removes it from prime targets');
+});
+
+test('pipeline runs: create, finish, and list in most-recent-first order', async () => {
+  const run = await db.createPipelineRun({ local_categories: ['dentist', 'bakery'], literary_recipe: 'clmp' });
+  assert.equal(run.status, 'running');
+  assert.deepEqual(run.local_categories, ['dentist', 'bakery']);
+
+  const finished = await db.finishPipelineRun(run.id, {
+    status: 'done',
+    local_scraped_count: 12,
+    literary_scraped_count: 24,
+    literary_blocked: false,
+    enriched_count: 30,
+  });
+  assert.equal(finished.status, 'done');
+  assert.equal(finished.local_scraped_count, 12);
+  assert.ok(finished.finished_at);
+
+  const runs = await db.getLatestPipelineRuns(1);
+  assert.equal(runs[0].id, run.id);
 });

@@ -26,4 +26,28 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS queued_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads (status);
 CREATE INDEX IF NOT EXISTS idx_leads_fit_score ON leads (fit_score DESC);
 CREATE INDEX IF NOT EXISTS idx_leads_source ON leads (source);
-CREATE INDEX IF NOT EXISTS idx_leads_queued ON leads (queued_at) WHERE queued_at IS NOT NULL;
+
+-- Deliberately no index on queued_at: a partial index here tripped a pg-mem
+-- bug in the test suite (IS NULL queries silently returned nothing once the
+-- partial index existed), and at this table size a full scan for the queue
+-- filter costs nothing worth indexing for.
+DROP INDEX IF EXISTS idx_leads_queued;
+
+-- One row per automated daily pipeline run, so the dashboard can show what's
+-- actually happened without needing the in-memory job tracker (which resets
+-- on every restart/redeploy).
+CREATE TABLE IF NOT EXISTS pipeline_runs (
+  id                  SERIAL PRIMARY KEY,
+  started_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finished_at         TIMESTAMPTZ,
+  status              TEXT NOT NULL DEFAULT 'running', -- running|done|error
+  local_categories    JSONB,                  -- categories searched this run, e.g. ["dentist","bakery"]
+  literary_recipe     TEXT,                   -- recipe scraped this run, if any
+  local_scraped_count INTEGER,
+  literary_scraped_count INTEGER,
+  literary_blocked    BOOLEAN,
+  enriched_count      INTEGER,
+  error               TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_pipeline_runs_started ON pipeline_runs (started_at DESC);

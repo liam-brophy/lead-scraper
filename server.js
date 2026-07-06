@@ -10,6 +10,7 @@ const { runJob, getJob } = require('./jobs');
 const googlePlaces = require('./scrapers/googlePlaces');
 const directoryScraper = require('./scrapers/directoryScraper');
 const { enrichLead } = require('./enrich');
+const scheduler = require('./scheduler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -35,6 +36,26 @@ app.get('/api/leads', async (req, res, next) => {
     const { status, source, minScore, search, queued } = req.query;
     const leads = await db.listLeads({ status, source, minScore, search, queued });
     res.json(leads);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/prime-targets', async (req, res, next) => {
+  try {
+    res.json(await db.getPrimeTargets());
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/status', async (req, res, next) => {
+  try {
+    const [summary, runs] = await Promise.all([
+      db.getStatusSummary(),
+      db.getLatestPipelineRuns(5),
+    ]);
+    res.json({ summary, runs });
   } catch (err) {
     next(err);
   }
@@ -114,6 +135,7 @@ app.use((err, req, res, next) => {
 async function start() {
   await db.migrate();
   app.listen(PORT, () => console.log(`Lead pipeline listening on :${PORT}`));
+  scheduler.start();
 }
 
 start().catch((err) => {

@@ -13,4 +13,22 @@ function hashSourceId(...parts) {
 // detect a soft block (e.g. a JS-only shell) that didn't come back as an HTTP error.
 class BlockedError extends Error {}
 
-module.exports = { hashSourceId, BlockedError };
+// Deterministic day-based rotation through a list -- e.g. picking which 3 of
+// 16 local categories or which literary recipe runs today. Pure function of
+// (date, list) so it's trivially testable and doesn't need any stored index
+// that could drift or get lost across restarts.
+function dayNumber(date = new Date()) {
+  return Math.floor(date.getTime() / 86400000);
+}
+
+function pickRotation(list, count, date = new Date()) {
+  if (list.length === 0) return [];
+  const start = (dayNumber(date) * count) % list.length;
+  const picked = [];
+  for (let i = 0; i < count; i++) {
+    picked.push(list[(start + i) % list.length]);
+  }
+  return picked;
+}
+
+module.exports = { hashSourceId, BlockedError, dayNumber, pickRotation };
