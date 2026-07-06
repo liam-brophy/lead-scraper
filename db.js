@@ -164,7 +164,8 @@ async function getStatusSummary() {
       (SELECT count(*) FROM leads) AS total_leads,
       (SELECT count(*) FROM leads WHERE fit_score >= ${PRIME_TARGET_MIN_SCORE} AND status != 'dead' AND queued_at IS NULL) AS prime_targets,
       (SELECT count(*) FROM leads WHERE fit_score IS NULL) AS pending_enrichment,
-      (SELECT count(*) FROM leads WHERE queued_at IS NOT NULL) AS queued
+      (SELECT count(*) FROM leads WHERE queued_at IS NOT NULL) AS queued,
+      (SELECT max(fit_score) FROM leads) AS top_score
   `);
   const row = rows[0];
   return {
@@ -172,7 +173,19 @@ async function getStatusSummary() {
     primeTargets: Number(row.prime_targets),
     pendingEnrichment: Number(row.pending_enrichment),
     queued: Number(row.queued),
+    topScore: row.top_score === null ? null : Number(row.top_score),
   };
+}
+
+// Most recently touched leads regardless of score -- lets the dashboard show
+// "here's what actually got processed" even when nothing clears the prime
+// target bar yet, instead of the funnel just looking like a dead end.
+async function getRecentLeads(limit = 10) {
+  const { rows } = await pool.query(
+    `SELECT * FROM leads ORDER BY updated_at DESC LIMIT $1`,
+    [limit]
+  );
+  return rows;
 }
 
 async function createPipelineRun({ local_categories, literary_recipe }) {
@@ -220,6 +233,7 @@ module.exports = {
   getLeadsPendingEnrichment,
   getPrimeTargets,
   getStatusSummary,
+  getRecentLeads,
   patchLead,
   applyEnrichment,
   createPipelineRun,

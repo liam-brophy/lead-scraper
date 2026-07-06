@@ -39,6 +39,13 @@ function relativeTime(isoString) {
   return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
+function absoluteTime(isoString) {
+  if (!isoString) return '';
+  return new Date(isoString).toLocaleString(undefined, {
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  });
+}
+
 async function patchLead(id, body) {
   try {
     await fetchJSON(`/api/leads/${id}`, {
@@ -64,7 +71,27 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
 });
 
 // -- Status panel ---------------------------------------------------------
-function renderStatus({ summary, runs }) {
+let statusPollTimer = null;
+
+function renderRecentLeads(recentLeads) {
+  const tbody = document.getElementById('recentBody');
+  tbody.innerHTML = recentLeads
+    .map((lead) => {
+      const type = leadType(lead);
+      return `
+        <tr>
+          <td><span class="type-badge ${type.className}">${type.label}</span></td>
+          <td class="score">${lead.fit_score ?? '—'}</td>
+          <td>${escapeHtml(lead.name)}</td>
+          <td>${escapeHtml(lead.status)}</td>
+          <td>${absoluteTime(lead.updated_at)}</td>
+        </tr>
+      `;
+    })
+    .join('');
+}
+
+function renderStatus({ summary, runs, recentLeads }) {
   const grid = document.getElementById('statGrid');
   grid.innerHTML = `
     <div class="stat"><div class="stat-value">${summary.primeTargets}</div><div class="stat-label">Prime targets</div></div>
@@ -73,14 +100,36 @@ function renderStatus({ summary, runs }) {
     <div class="stat"><div class="stat-value">${summary.totalLeads}</div><div class="stat-label">Total leads</div></div>
   `;
 
+  renderRecentLeads(recentLeads);
+
+  // Explain a 0-prime-targets state instead of leaving it silent -- e.g.
+  // "24 leads scraped, none scored high enough yet" reads very differently
+  // from a broken pipeline.
+  const primeEmptyEl = document.getElementById('primeEmpty');
+  if (summary.primeTargets === 0) {
+    primeEmptyEl.hidden = false;
+    primeEmptyEl.textContent = summary.totalLeads > 0
+      ? `${summary.totalLeads} lead${summary.totalLeads === 1 ? '' : 's'} processed so far, none scored 50+ yet (highest: ${summary.topScore ?? '—'}). Check "Recently processed" below.`
+      : 'Nothing scraped yet — check back after the next automated run.';
+  } else {
+    primeEmptyEl.hidden = true;
+  }
+
   const lastRunEl = document.getElementById('lastRun');
   const [latest] = runs;
+  clearTimeout(statusPollTimer);
+
   if (!latest) {
     lastRunEl.textContent = 'Automation hasn’t run yet — the first run starts shortly.';
+    statusPollTimer = setTimeout(loadStatus, 5000);
     return;
   }
   if (latest.status === 'running') {
-    lastRunEl.textContent = `Running now — started ${relativeTime(latest.started_at)}.`;
+    lastRunEl.textContent = `Running now — started ${absoluteTime(latest.started_at)} (${relativeTime(latest.started_at)}).`;
+    statusPollTimer = setTimeout(async () => {
+      await loadStatus();
+      loadPrimeTargets(); // pick up whatever the run just produced as soon as it finishes
+    }, 5000);
     return;
   }
   const parts = [];
@@ -90,7 +139,7 @@ function renderStatus({ summary, runs }) {
   if (latest.enriched_count !== null) parts.push(`${latest.enriched_count} enriched`);
   const detail = parts.length ? ` — ${parts.join(', ')}` : '';
   const failed = latest.status === 'error' ? ` (failed: ${escapeHtml(latest.error || 'unknown error')})` : '';
-  lastRunEl.textContent = `Last run: ${relativeTime(latest.started_at)}${detail}${failed}`;
+  lastRunEl.textContent = `Last fetched: ${absoluteTime(latest.started_at)} (${relativeTime(latest.started_at)})${detail}${failed}`;
 }
 
 async function loadStatus() {

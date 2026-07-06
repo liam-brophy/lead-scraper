@@ -26,11 +26,17 @@ personalized.
    service being sold here. Leads with no website at all get a high default
    score, since "doesn't have a site" is itself a strong opportunity. See
    `scoreSite()` in `scrapers/siteAnalyzer.js` for the exact weights.
-3. **Review on Home** — a status report, not a table to dig through: last-run
-   summary, counts (prime targets ready / being reviewed / in library / total),
-   and the actual prime-targets list (scored, still live, not already saved).
-   Each lead is tagged **Local** or **Literary** so the two pools stay visually
-   distinct even though they can appear in the same list.
+3. **Review on Home** — a status report, not a table to dig through: last-fetched
+   time (absolute + relative, e.g. "Jul 6, 4:42 PM (1 hour ago)"), counts
+   (prime targets ready / being reviewed / in library / total), the
+   prime-targets list itself, and a "Recently processed" panel showing the
+   last 10 leads touched regardless of score. That last one matters: if a run
+   finds leads but none clear the prime-target bar, the empty state says so
+   explicitly ("24 leads processed, none scored 50+ yet, highest: 45") instead
+   of just showing a silent zero next to a nonzero total-leads count. While a
+   run is in progress, Home polls itself every 5s and shows "Running now"
+   until it finishes. Each lead is tagged **Local** or **Literary** so the two
+   pools stay visually distinct even though they can appear in the same list.
 4. **Library** — its own tab, not a filter. Add a prime target here with one
    click; it stays independent of contacted/replied/booked/dead status, so
    saving something to reach out to later never gets confused with having

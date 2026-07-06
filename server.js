@@ -51,11 +51,12 @@ app.get('/api/prime-targets', async (req, res, next) => {
 
 app.get('/api/status', async (req, res, next) => {
   try {
-    const [summary, runs] = await Promise.all([
+    const [summary, runs, recentLeads] = await Promise.all([
       db.getStatusSummary(),
       db.getLatestPipelineRuns(5),
+      db.getRecentLeads(10),
     ]);
-    res.json({ summary, runs });
+    res.json({ summary, runs, recentLeads });
   } catch (err) {
     next(err);
   }
