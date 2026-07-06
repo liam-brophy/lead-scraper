@@ -1,4 +1,4 @@
-:root { color-scheme: light dark; }
+:root { color-scheme: light; }
 
 * { box-sizing: border-box; }
 
@@ -23,6 +23,7 @@ h3 { font-size: 0.9rem; margin: 0 0 0.5rem; }
 
 .link-button {
   background: none;
+  color: #1a1a1a;
   border: 1px solid #ccc;
   border-radius: 4px;
   padding: 0.4rem 0.8rem;
